@@ -14,5 +14,6 @@ services:
       - SUMMARY_TIME=${SUMMARY_TIME:-20:00}
       - SUMMARY_TZ=${SUMMARY_TZ:-America/Los_Angeles}
       - SUMMARY_MODEL=${SUMMARY_MODEL:-claude-sonnet-5}
+      - SUMMARY_FALLBACK_MODEL=${SUMMARY_FALLBACK_MODEL:-claude-sonnet-5}
     volumes:
       - ./config:/config

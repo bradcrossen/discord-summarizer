@@ -19,6 +19,8 @@ def settings(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "api-key")
     monkeypatch.setattr(config, "SUMMARY_TIMEOUT", 20.0)
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-sonnet-5")
+    monkeypatch.setattr(config, "SUMMARY_FALLBACK_MODEL", "claude-sonnet-5")
 
 
 def fake_cli(monkeypatch, tmp_path, body: str) -> None:
@@ -26,7 +28,8 @@ def fake_cli(monkeypatch, tmp_path, body: str) -> None:
     script = tmp_path / "fake_claude.py"
     script.write_text("import json, sys, time\nprompt = sys.stdin.read()\n" + body,
                       encoding="utf-8")
-    monkeypatch.setattr(claude, "build_command", lambda: [sys.executable, str(script)])
+    monkeypatch.setattr(claude, "build_command",
+                        lambda model=None: [sys.executable, str(script)])
 
 
 def test_command_has_no_tools_no_mcp_and_no_transcript():
@@ -115,30 +118,74 @@ def _script(n):
                             ZoneInfo("America/Los_Angeles"))
 
 
+def no_sleeping(monkeypatch):
+    async def no_sleep(_):
+        pass
+    monkeypatch.setattr(claude.asyncio, "sleep", no_sleep)
+
+
 def test_summarize_retries_once(monkeypatch):
     calls = []
 
-    async def flaky(prompt):
+    async def flaky(prompt, model=None):
         calls.append(prompt)
         if len(calls) == 1:
             raise claude.ClaudeError("overloaded")
         return GOOD
 
-    async def no_sleep(_):
-        pass
-
     monkeypatch.setattr(claude, "run_claude", flaky)
-    monkeypatch.setattr(claude.asyncio, "sleep", no_sleep)
+    no_sleeping(monkeypatch)
     assert asyncio.run(claude.summarize("Channel: #general", _script(3))) == GOOD
     assert len(calls) == 2 and calls[0] == calls[1]
     assert calls[0].startswith("Channel: #general\n\n<transcript>\n[m1] ")
+
+
+def test_the_model_reaches_the_argv():
+    default = claude.build_command()
+    assert default[default.index("--model") + 1] == "claude-sonnet-5"
+    cmd = claude.build_command("claude-opus-5")
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-5"
+
+
+def test_no_third_attempt_when_the_fallback_is_the_same_model(monkeypatch):
+    assert claude._attempts() == ["claude-sonnet-5", "claude-sonnet-5"]
+    monkeypatch.setattr(config, "SUMMARY_FALLBACK_MODEL", "")
+    assert claude._attempts() == ["claude-sonnet-5", "claude-sonnet-5"]
+
+
+def test_opus_falls_back_to_sonnet_when_overloaded(monkeypatch):
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5")
+    tried = []
+
+    async def overloaded(prompt, model=None):
+        tried.append(model)
+        if model == "claude-opus-5":
+            raise claude.ClaudeError("API Error: 529 Overloaded")
+        return GOOD
+
+    monkeypatch.setattr(claude, "run_claude", overloaded)
+    no_sleeping(monkeypatch)
+    assert asyncio.run(claude.summarize("Channel: #general", _script(3))) == GOOD
+    assert tried == ["claude-opus-5", "claude-opus-5", "claude-sonnet-5"]
+
+
+def test_the_last_failure_is_what_gets_reported(monkeypatch):
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5")
+
+    async def always_broken(prompt, model=None):
+        raise claude.ClaudeError(f"{model} is unhappy")
+
+    monkeypatch.setattr(claude, "run_claude", always_broken)
+    no_sleeping(monkeypatch)
+    with pytest.raises(claude.ClaudeError, match="claude-sonnet-5 is unhappy"):
+        asyncio.run(claude.summarize("Channel: #general", _script(3)))
 
 
 def test_a_huge_day_is_digested_in_parts_then_merged(monkeypatch):
     monkeypatch.setattr(config, "MAX_TRANSCRIPT_CHARS", 1000)
     prompts = []
 
-    async def fake(prompt):
+    async def fake(prompt, model=None):
         prompts.append(prompt)
         return {"tldr": f"part {len(prompts)}", "topics": [], "quotes": []}
 

@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from . import config
 from .transcript import Transcript
@@ -82,14 +83,14 @@ def claude_path() -> str:
     return config.CLAUDE_BIN or shutil.which("claude") or "claude"
 
 
-def build_command() -> list[str]:
+def build_command(model: Optional[str] = None) -> list[str]:
     """The argv for one summary. The transcript is not in here: it goes on
     stdin, which settles every quoting and length question at once."""
     return [
         claude_path(),
         "-p",
         "--output-format", "json",
-        "--model", config.SUMMARY_MODEL,
+        "--model", model or config.SUMMARY_MODEL,
         # Every built-in tool off, and no MCP servers from anywhere.
         "--tools", "",
         "--strict-mcp-config",
@@ -180,12 +181,12 @@ def validate(summary: object) -> dict:
     return {"tldr": summary["tldr"], "topics": topics, "quotes": quotes}
 
 
-async def run_claude(prompt: str) -> dict:
+async def run_claude(prompt: str, model: Optional[str] = None) -> dict:
     workspace = config.CLAUDE_HOME / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
     try:
         proc = await asyncio.create_subprocess_exec(
-            *build_command(),
+            *build_command(model),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -210,13 +211,28 @@ async def run_claude(prompt: str) -> dict:
     return parse_result(stdout)
 
 
+def _attempts() -> list[str]:
+    """The models to try, in order: the chosen one twice, then the fallback."""
+    models = [config.SUMMARY_MODEL, config.SUMMARY_MODEL]
+    fallback = config.SUMMARY_FALLBACK_MODEL
+    if fallback and fallback != config.SUMMARY_MODEL:
+        models.append(fallback)
+    return models
+
+
 async def _with_retry(prompt: str) -> dict:
-    try:
-        return await run_claude(prompt)
-    except ClaudeError as exc:
-        log.warning("First attempt failed (%s); retrying once", exc)
-        await asyncio.sleep(5)
-        return await run_claude(prompt)
+    models = _attempts()
+    for number, model in enumerate(models, 1):
+        try:
+            return await run_claude(prompt, model)
+        except ClaudeError as exc:
+            if number == len(models):
+                raise
+            following = models[number]
+            log.warning("Attempt %d on %s failed (%s); retrying on %s",
+                        number, model, exc, following)
+            await asyncio.sleep(5)
+    raise AssertionError("unreachable")
 
 
 def _prompt(header: str, body: str) -> str:

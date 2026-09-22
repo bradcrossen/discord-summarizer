@@ -139,13 +139,33 @@ be left empty.
 | `SUMMARY_TZ` | `America/Los_Angeles` | zone `SUMMARY_TIME` is read in |
 | `TZ` | `America/Chicago` | log timestamps only |
 | `ERROR_WEBHOOK_URL` | | failure notes go here instead of the main webhook |
-| `SUMMARY_MODEL` | `claude-sonnet-5` | |
-| `SUMMARY_TIMEOUT` | `300` | seconds per Claude call; one retry |
+| `SUMMARY_MODEL` | `claude-sonnet-5` | `claude-opus-5` writes a better digest and draws harder on the subscription's usage limit |
+| `SUMMARY_FALLBACK_MODEL` | `claude-sonnet-5` | tried once if `SUMMARY_MODEL` fails twice. Equal to it (the default) or blank means no extra attempt |
+| `SUMMARY_TIMEOUT` | `300` | seconds per Claude call |
 | `MIN_MESSAGES` | `5` | below this, a "quiet day" note and no Claude call |
 | `INCLUDE_BOTS` | `0` | include other bots' messages |
 | `CATCHUP_HOURS` | `3` | how late a missed digest is still worth posting |
 | `MAX_TRANSCRIPT_CHARS` | `400000` | beyond this the day is digested in parts and merged |
 | `MAX_PAGES` | `200` | history pages of 100; bounds a day at 20k messages |
+
+## Choosing a model
+
+`SUMMARY_MODEL=claude-opus-5` gives a noticeably better-written digest. Both
+models were tested on the same channel and pick out the same topics, quotes and
+unanswered questions; Opus phrases them better and is roughly 3-4x the usage
+draw for one call a day.
+
+The catch is that the usage limit is shared by everything signed in with this
+token — dm-assistant's Ask page included — and the digest runs unattended. So a
+run is attempted twice on `SUMMARY_MODEL` and then once on
+`SUMMARY_FALLBACK_MODEL`: set the model to `claude-opus-5` and leave the
+fallback at `claude-sonnet-5`, and an overloaded server or a spent limit costs
+you a slightly plainer digest rather than the whole day. The log says which
+model wrote it:
+
+```
+summarizer.claude WARNING Attempt 2 on claude-opus-5 failed (...529 Overloaded...); retrying on claude-sonnet-5
+```
 
 ## Not covered yet
 

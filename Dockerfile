@@ -25,6 +25,7 @@ ENV CONFIG_DIR=/config \
     SUMMARY_TIME=20:00 \
     SUMMARY_TZ=America/Los_Angeles \
     SUMMARY_MODEL=claude-sonnet-5 \
+    SUMMARY_FALLBACK_MODEL=claude-sonnet-5 \
     PYTHONUNBUFFERED=1
 
 # Stamped by CI with the commit being built, and logged on startup, so "is the

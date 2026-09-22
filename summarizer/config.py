@@ -59,6 +59,11 @@ CLAUDE_CODE_OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "claude-sonnet-5")
+# Tried once if SUMMARY_MODEL fails twice, so a digest degrades instead of being
+# skipped. Matters on a subscription: the usage limit is shared with everything
+# else signed in with this token, and the digest runs unattended. Equal to
+# SUMMARY_MODEL (the default) means no extra attempt; empty disables it.
+SUMMARY_FALLBACK_MODEL = os.environ.get("SUMMARY_FALLBACK_MODEL", "claude-sonnet-5")
 # Wall clock for one `claude -p` call. A full day of a busy channel is a long
 # prompt, so this is more generous than an interactive answer would need.
 SUMMARY_TIMEOUT = float(os.environ.get("SUMMARY_TIMEOUT", "300"))
