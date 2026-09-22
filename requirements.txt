@@ -1,0 +1,4 @@
+httpx
+# zoneinfo's data. The image has the OS tzdata too, but a Windows dev box has
+# neither, and ZoneInfo("America/Los_Angeles") raises there without this.
+tzdata

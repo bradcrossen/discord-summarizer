@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>discord-summarizer</Name>
+  <Repository>ghcr.io/bradcrossen/discord-summarizer:latest</Repository>
+  <Registry>https://ghcr.io/</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/bradcrossen/discord-summarizer</Support>
+  <Project>https://github.com/bradcrossen/discord-summarizer</Project>
+  <Overview>Posts a daily digest of one Discord channel. Reads the last day of messages at run time, summarizes them with Claude on a Max subscription, and posts the result through a webhook.</Overview>
+  <Category>Tools:Utilities</Category>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+
+  <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/discord-summarizer" Mode="rw" Description="Holds state.json (which digest was last posted, so a restart never double-posts) and the Claude CLI's home directory." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/discord-summarizer</Config>
+
+  <Config Name="Discord Bot Token" Target="DISCORD_BOT_TOKEN" Default="" Mode="" Description="Reads the channel history; a webhook can only post. The bot needs View Channel and Read Message History on the source channel, and the Message Content intent enabled in the developer portal." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Source Channel ID" Target="DISCORD_CHANNEL_ID" Default="" Mode="" Description="The channel to summarize. Right-click the channel with Developer Mode on, Copy Channel ID." Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Webhook URL" Target="DISCORD_WEBHOOK_URL" Default="" Mode="" Description="Where the digest is posted. May be a webhook on the source channel itself; the bot skips its own posts." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Claude Token" Target="CLAUDE_CODE_OAUTH_TOKEN" Default="" Mode="" Description="Long-lived subscription token from `claude setup-token`. The same one dm-assistant uses is fine. When it expires (about a year) the bot posts a failure note saying so." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+
+  <Config Name="Summary Time" Target="SUMMARY_TIME" Default="20:00" Mode="" Description="24-hour wall-clock time of the daily digest, in Summary Timezone." Type="Variable" Display="always" Required="false" Mask="false">20:00</Config>
+  <Config Name="Summary Timezone" Target="SUMMARY_TZ" Default="America/Los_Angeles" Mode="" Description="Timezone Summary Time is read in. Independent of the server's own timezone." Type="Variable" Display="always" Required="false" Mask="false">America/Los_Angeles</Config>
+  <Config Name="Log Timezone" Target="TZ" Default="America/Chicago" Mode="" Description="Only affects timestamps in the container log." Type="Variable" Display="advanced" Required="false" Mask="false">America/Chicago</Config>
+  <Config Name="Error Webhook URL" Target="ERROR_WEBHOOK_URL" Default="" Mode="" Description="Optional. Failure notes go here instead of the main webhook." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Model" Target="SUMMARY_MODEL" Default="claude-sonnet-5" Mode="" Description="Which Claude model writes the digest." Type="Variable" Display="advanced" Required="false" Mask="false">claude-sonnet-5</Config>
+  <Config Name="Quiet Day Threshold" Target="MIN_MESSAGES" Default="5" Mode="" Description="Fewer messages than this gets a one-line 'quiet day' note and no Claude call." Type="Variable" Display="advanced" Required="false" Mask="false">5</Config>
+  <Config Name="Include Bots" Target="INCLUDE_BOTS" Default="0" Mode="" Description="Set 1 to include other bots' messages in the digest. The summarizer's own posts are always skipped." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
+  <Config Name="Catch-up Hours" Target="CATCHUP_HOURS" Default="3" Mode="" Description="If the container was down at the scheduled time, still post when it comes back within this many hours." Type="Variable" Display="advanced" Required="false" Mask="false">3</Config>
+  <Config Name="Claude Timeout" Target="SUMMARY_TIMEOUT" Default="300" Mode="" Description="Seconds to wait for Claude before retrying once and then posting a failure note." Type="Variable" Display="advanced" Required="false" Mask="false">300</Config>
+</Container>

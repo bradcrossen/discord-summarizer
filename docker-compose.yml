@@ -1,0 +1,18 @@
+services:
+  discord-summarizer:
+    build: .
+    image: ghcr.io/bradcrossen/discord-summarizer:latest
+    container_name: discord-summarizer
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-America/Chicago}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - ERROR_WEBHOOK_URL=${ERROR_WEBHOOK_URL:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - SUMMARY_TIME=${SUMMARY_TIME:-20:00}
+      - SUMMARY_TZ=${SUMMARY_TZ:-America/Los_Angeles}
+      - SUMMARY_MODEL=${SUMMARY_MODEL:-claude-sonnet-5}
+    volumes:
+      - ./config:/config
