@@ -104,6 +104,14 @@ docker exec discord-summarizer python -m summarizer --once --dry-run
 docker exec discord-summarizer python -m summarizer --hours 6
 ```
 
+If a day's digest went wrong, delete it in Discord and post it again for the
+same 8PM-to-8PM window. This works any time before the next scheduled run; add
+`--dry-run` to see it first:
+
+```bash
+docker exec discord-summarizer python -m summarizer --redo
+```
+
 Manual runs never touch the schedule's state, so they cannot suppress the real
 digest.
 
@@ -124,6 +132,7 @@ be left empty.
 | `python -m summarizer` | run the daily schedule (the container's CMD) |
 | `--once` | digest the last 24 hours now and post it |
 | `--hours N` | digest the last N hours now |
+| `--redo` | digest the last scheduled window (8PM to 8PM) again now |
 | `--dry-run` | print the webhook payload instead of posting |
 | `--show-transcript` | also print exactly what Claude is given |
 
