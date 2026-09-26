@@ -198,3 +198,60 @@ def test_a_huge_day_is_digested_in_parts_then_merged(monkeypatch):
     assert "part 1 of" in parts[0] and "[m1] " in parts[0]
     assert "[m30] " in parts[-1] and "[m30] " not in parts[0]
     assert "<parts>" in merge and '"part 1"' in merge and "<transcript>" not in merge
+
+
+# What was posted as a real day's digest: the schema's shape, names from the
+# system prompt's example line, nothing from the chat.
+STUB = {"tldr": "Test tldr sentence one. Test tldr sentence two.", "quotes": [],
+        "topics": [{"title": "Test topic", "summary": "Test summary.",
+                    "participants": ["Alice", "Bob"], "start_ref": "m1",
+                    "key_messages": []}]}
+
+
+def _chat():
+    return transcript.build(
+        [message(i, "Carol" if i % 2 else "Dave", f"line {i}") for i in range(6)],
+        ZoneInfo("America/Los_Angeles"))
+
+
+def _topic(**changes):
+    return {"tldr": "A day.", "quotes": [], "topics": [{
+        "title": "Lines", "summary": "Carol and Dave counted.",
+        "participants": ["Carol", "Dave"], "start_ref": "m2", "key_messages": [],
+        **changes}]}
+
+
+def test_a_digest_grounded_in_the_transcript_is_accepted():
+    claude.check_grounded(_topic(), _chat())
+    claude.check_grounded(_topic(participants=["  carol ", "Someone Mentioned"]), _chat())
+    claude.check_grounded(_topic(participants=[]), _chat())
+    claude.check_grounded(GOOD, _chat())
+
+
+def test_a_digest_about_nobody_in_the_transcript_is_rejected():
+    with pytest.raises(claude.ClaudeError, match="names nobody who spoke"):
+        claude.check_grounded(STUB, _chat())
+    with pytest.raises(claude.ClaudeError, match="links no topic"):
+        claude.check_grounded(_topic(start_ref="m99"), _chat())
+
+
+def test_a_stub_digest_is_retried_instead_of_posted(monkeypatch):
+    replies = [STUB, _topic()]
+
+    async def stub_first(prompt, model=None):
+        return replies.pop(0)
+
+    monkeypatch.setattr(claude, "run_claude", stub_first)
+    no_sleeping(monkeypatch)
+    assert asyncio.run(claude.summarize("Channel: #general", _chat())) == _topic()
+    assert replies == []
+
+
+def test_a_persistent_stub_becomes_a_failure(monkeypatch):
+    async def always_stub(prompt, model=None):
+        return STUB
+
+    monkeypatch.setattr(claude, "run_claude", always_stub)
+    no_sleeping(monkeypatch)
+    with pytest.raises(claude.ClaudeError, match="names nobody who spoke"):
+        asyncio.run(claude.summarize("Channel: #general", _chat()))
