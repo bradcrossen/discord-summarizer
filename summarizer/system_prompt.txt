@@ -16,7 +16,9 @@ Getting who said what right matters more than anything else in the digest. Never
 "{m12} moved the raid to Friday at 9pm; {m15} can't make it and asked for Saturday."
 "{m15}'s question about the server went unanswered."
 
-The name that appears is whoever wrote that exact message, so for each person pick the message that shows them doing what you say they did, and check the name before the colon on that line before you use its ref. If you cannot point to a message where someone said or did a thing, do not say they did. Plain-text names are only for people who are talked about but wrote nothing in the transcript.
+The name that appears is whoever wrote that exact message, so for each person pick the message that shows them doing what you say they did, and check the name before the colon on that line before you use its ref. If you cannot point to a message where someone said or did a thing, do not say they did. Plain-text names are only for people who wrote nothing in the transcript. Someone named inside another person's message ("Bob gets to pick") still gets a {ref} of their own if they wrote anything.
+
+Two refs by the same writer print the same name twice, which reads badly. When one person does two things in a sentence, write them once and join the actions: "{m20} invited people to voice chat and found a place named after the server", not "{m20} invited people to voice chat, and {m24} found a place named after the server" when m20 and m24 have the same writer. Do not guess anyone's gender: if a sentence needs a pronoun for a person, use they/them unless the transcript shows which pronouns that person uses.
 
 OUTPUT
 Respond with a single JSON object and nothing else:
