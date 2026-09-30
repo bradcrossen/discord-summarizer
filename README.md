@@ -26,6 +26,13 @@ gets a one-line "quiet day" note instead.
   turns refs into jump links and pulls quote text from the real message, so a
   link cannot be invented and a quote cannot be put in someone's mouth. An
   excerpt that is not a substring of the message is replaced by the real words.
+- **Claude is told never to type a name.** Wherever a summary says who did
+  something, it writes `{m12}` and the code fills in whoever wrote m12.
+  Participants are refs too, and a digest that lists typed names instead is
+  rejected. A name then comes from a message Claude pointed at, not from its
+  memory of who said what. The code cannot check that Claude picked the *right*
+  message, or catch a name it types into a summary anyway. A forwarded message
+  is never quoted, because Discord does not say who first wrote it.
 - **The chat is untrusted input.** The `claude` subprocess runs with `--tools ""`,
   no MCP servers, and an empty HOME and working directory, so the worst a
   prompt-injection in the channel can do is make one digest wrong. Every post is
@@ -90,7 +97,7 @@ apply. There is no port and no web UI. To update: push, then on Unraid
 The log should open with:
 
 ```
-summarizer INFO discord-summarizer commit=<sha> model=claude-sonnet-5 schedule=20:00 America/Los_Angeles
+summarizer INFO discord-summarizer commit=<sha> model=claude-opus-5-5 schedule=20:00 America/Los_Angeles
 summarizer.scheduler INFO Next digest at 2026-09-22 20:00 PDT (2026-09-22 22:00 CDT host time)
 ```
 
@@ -148,8 +155,9 @@ be left empty.
 | `SUMMARY_TZ` | `America/Los_Angeles` | zone `SUMMARY_TIME` is read in |
 | `TZ` | `America/Chicago` | log timestamps only |
 | `ERROR_WEBHOOK_URL` | | failure notes go here instead of the main webhook |
-| `SUMMARY_MODEL` | `claude-sonnet-5` | `claude-opus-5` writes a better digest and draws harder on the subscription's usage limit |
-| `SUMMARY_FALLBACK_MODEL` | `claude-sonnet-5` | tried once if `SUMMARY_MODEL` fails twice. Equal to it (the default) or blank means no extra attempt |
+| `SUMMARY_MODEL` | `claude-opus-5-5` | which model writes the digest; see below |
+| `SUMMARY_FALLBACK_MODEL` | `claude-sonnet-5-5` | tried once if `SUMMARY_MODEL` fails twice. Equal to it or blank means no extra attempt |
+| `SUMMARY_EFFORT` | | `low` … `max`, passed to `claude --effort`. `high` reads the day more carefully; blank leaves it to the CLI |
 | `SUMMARY_TIMEOUT` | `300` | seconds per Claude call |
 | `MIN_MESSAGES` | `5` | below this, a "quiet day" note and no Claude call |
 | `INCLUDE_BOTS` | `0` | include other bots' messages |
@@ -159,21 +167,25 @@ be left empty.
 
 ## Choosing a model
 
-`SUMMARY_MODEL=claude-opus-5` gives a noticeably better-written digest. Both
-models were tested on the same channel and pick out the same topics, quotes and
-unanswered questions; Opus phrases them better and is roughly 3-4x the usage
-draw for one call a day.
+The default is `claude-opus-5-5`. On Opus 5 vs Sonnet 5 (the previous pair),
+both picked out the same topics, quotes and unanswered questions on the same
+channel. Opus phrased them better at roughly 3-4x the usage draw for one call a
+day. `claude-sonnet-5-5` is the lighter choice.
+
+Opus 5.5 and Sonnet 5.5 need Claude Code 2.1.280 or newer. The image pins the
+CLI with `CLAUDE_CODE_VERSION` in the `Dockerfile`, so a newer model means
+bumping that and pushing. An older CLI fails every call with `Claude Code
+2.1.x does not support this model`.
 
 The catch is that the usage limit is shared by everything signed in with this
 token — dm-assistant's Ask page included — and the digest runs unattended. So a
 run is attempted twice on `SUMMARY_MODEL` and then once on
-`SUMMARY_FALLBACK_MODEL`: set the model to `claude-opus-5` and leave the
-fallback at `claude-sonnet-5`, and an overloaded server or a spent limit costs
-you a slightly plainer digest rather than the whole day. The log says which
-model wrote it:
+`SUMMARY_FALLBACK_MODEL`. An overloaded server or a spent limit then costs you a
+slightly plainer digest rather than the whole day. The log says which model
+wrote it:
 
 ```
-summarizer.claude WARNING Attempt 2 on claude-opus-5 failed (...529 Overloaded...); retrying on claude-sonnet-5
+summarizer.claude WARNING Attempt 2 on claude-opus-5-5 failed (...529 Overloaded...); retrying on claude-sonnet-5-5
 ```
 
 ## Not covered yet

@@ -1,8 +1,8 @@
 """Discord messages -> the numbered transcript Claude reads.
 
 Every kept message gets a short ref (``m12``). Claude only ever answers in refs;
-render.py turns them back into jump links and real quote text, so neither a URL
-nor an attribution can be invented.
+render.py turns them back into jump links, real quote text and the names of the
+people who wrote them, so neither a URL nor an attribution can be invented.
 """
 
 from __future__ import annotations
@@ -36,6 +36,9 @@ class Line:
     sent: datetime
     text: str
     rendered: str
+    # Someone else's words passed along. Discord's snapshot does not say whose,
+    # so the author here is the person who forwarded it, not who wrote it.
+    forwarded: bool = False
 
 
 @dataclass
@@ -131,12 +134,14 @@ def build(messages: list[dict], tz: tzinfo, own_webhook_id: Optional[str] = None
         if not _keep(message, own_webhook_id, include_bots):
             continue
         text = clean_content(message)
+        forwarded = False
         if not text:
             # A forward carries its text in a snapshot, not in `content`.
             for snap in message.get("message_snapshots") or []:
                 inner = clean_content(snap.get("message") or {})
                 if inner:
                     text = f"[forwarded] {inner}"
+                    forwarded = True
                     break
         extras = _extras(message)
         if not text and not extras:
@@ -163,6 +168,7 @@ def build(messages: list[dict], tz: tzinfo, own_webhook_id: Optional[str] = None
 
         lines.append(Line(ref=ref, message_id=message_id, author=display_name(author),
                           author_id=str(author.get("id") or display_name(author)),
-                          sent=sent, text=text, rendered=rendered))
+                          sent=sent, text=text, rendered=rendered,
+                          forwarded=forwarded))
 
     return Transcript(lines)

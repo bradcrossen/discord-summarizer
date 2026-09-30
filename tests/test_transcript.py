@@ -66,7 +66,10 @@ def test_system_and_empty_messages_are_skipped():
 def test_forwarded_text_comes_from_the_snapshot():
     forward = message(0, "Alice", "",
                       message_snapshots=[{"message": {"content": "original words"}}])
-    assert transcript.build([forward], PT).lines[0].text == "[forwarded] original words"
+    [line] = transcript.build([forward], PT).lines
+    assert line.text == "[forwarded] original words"
+    assert line.forwarded
+    assert not transcript.build([message(0, "Alice", "mine")], PT).lines[0].forwarded
 
 
 def test_a_message_cannot_close_the_transcript_block():

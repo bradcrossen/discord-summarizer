@@ -19,8 +19,9 @@ def settings(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "api-key")
     monkeypatch.setattr(config, "SUMMARY_TIMEOUT", 20.0)
-    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-sonnet-5")
-    monkeypatch.setattr(config, "SUMMARY_FALLBACK_MODEL", "claude-sonnet-5")
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setattr(config, "SUMMARY_FALLBACK_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setattr(config, "SUMMARY_EFFORT", "")
 
 
 def fake_cli(monkeypatch, tmp_path, body: str) -> None:
@@ -142,42 +143,49 @@ def test_summarize_retries_once(monkeypatch):
 
 def test_the_model_reaches_the_argv():
     default = claude.build_command()
-    assert default[default.index("--model") + 1] == "claude-sonnet-5"
-    cmd = claude.build_command("claude-opus-5")
-    assert cmd[cmd.index("--model") + 1] == "claude-opus-5"
+    assert default[default.index("--model") + 1] == "claude-sonnet-5-5"
+    cmd = claude.build_command("claude-opus-5-5")
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-5-5"
+
+
+def test_effort_is_passed_only_when_set(monkeypatch):
+    assert "--effort" not in claude.build_command()
+    monkeypatch.setattr(config, "SUMMARY_EFFORT", "high")
+    cmd = claude.build_command()
+    assert cmd[cmd.index("--effort") + 1] == "high"
 
 
 def test_no_third_attempt_when_the_fallback_is_the_same_model(monkeypatch):
-    assert claude._attempts() == ["claude-sonnet-5", "claude-sonnet-5"]
+    assert claude._attempts() == ["claude-sonnet-5-5", "claude-sonnet-5-5"]
     monkeypatch.setattr(config, "SUMMARY_FALLBACK_MODEL", "")
-    assert claude._attempts() == ["claude-sonnet-5", "claude-sonnet-5"]
+    assert claude._attempts() == ["claude-sonnet-5-5", "claude-sonnet-5-5"]
 
 
 def test_opus_falls_back_to_sonnet_when_overloaded(monkeypatch):
-    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5")
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5-5")
     tried = []
 
     async def overloaded(prompt, model=None):
         tried.append(model)
-        if model == "claude-opus-5":
+        if model == "claude-opus-5-5":
             raise claude.ClaudeError("API Error: 529 Overloaded")
         return GOOD
 
     monkeypatch.setattr(claude, "run_claude", overloaded)
     no_sleeping(monkeypatch)
     assert asyncio.run(claude.summarize("Channel: #general", _script(3))) == GOOD
-    assert tried == ["claude-opus-5", "claude-opus-5", "claude-sonnet-5"]
+    assert tried == ["claude-opus-5-5", "claude-opus-5-5", "claude-sonnet-5-5"]
 
 
 def test_the_last_failure_is_what_gets_reported(monkeypatch):
-    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5")
+    monkeypatch.setattr(config, "SUMMARY_MODEL", "claude-opus-5-5")
 
     async def always_broken(prompt, model=None):
         raise claude.ClaudeError(f"{model} is unhappy")
 
     monkeypatch.setattr(claude, "run_claude", always_broken)
     no_sleeping(monkeypatch)
-    with pytest.raises(claude.ClaudeError, match="claude-sonnet-5 is unhappy"):
+    with pytest.raises(claude.ClaudeError, match="claude-sonnet-5-5 is unhappy"):
         asyncio.run(claude.summarize("Channel: #general", _script(3)))
 
 
@@ -216,14 +224,14 @@ def _chat():
 
 def _topic(**changes):
     return {"tldr": "A day.", "quotes": [], "topics": [{
-        "title": "Lines", "summary": "Carol and Dave counted.",
-        "participants": ["Carol", "Dave"], "start_ref": "m2", "key_messages": [],
+        "title": "Lines", "summary": "{m2} and {m1} counted.",
+        "participants": ["m2", "m1"], "start_ref": "m2", "key_messages": [],
         **changes}]}
 
 
 def test_a_digest_grounded_in_the_transcript_is_accepted():
     claude.check_grounded(_topic(), _chat())
-    claude.check_grounded(_topic(participants=["  carol ", "Someone Mentioned"]), _chat())
+    claude.check_grounded(_topic(participants=[" [M2] ", "m99"]), _chat())
     claude.check_grounded(_topic(participants=[]), _chat())
     claude.check_grounded(GOOD, _chat())
 
@@ -233,6 +241,13 @@ def test_a_digest_about_nobody_in_the_transcript_is_rejected():
         claude.check_grounded(STUB, _chat())
     with pytest.raises(claude.ClaudeError, match="links no topic"):
         claude.check_grounded(_topic(start_ref="m99"), _chat())
+
+
+def test_a_digest_that_types_names_instead_of_citing_messages_is_rejected():
+    # Real names, but typed rather than taken from a message: the digest has
+    # ignored the naming rule, so its summaries' names are unchecked too.
+    with pytest.raises(claude.ClaudeError, match="names nobody who spoke"):
+        claude.check_grounded(_topic(participants=["Carol", "Dave"]), _chat())
 
 
 def test_a_stub_digest_is_retried_instead_of_posted(monkeypatch):

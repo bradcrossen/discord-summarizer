@@ -59,7 +59,7 @@ def test_a_normal_day_posts_a_linked_digest(monkeypatch):
         seen["header"], seen["lines"] = header, len(script)
         return {"tldr": "Busy.", "quotes": [],
                 "topics": [{"title": "Lines", "summary": "They counted.",
-                            "participants": ["Alice"], "start_ref": "m3",
+                            "participants": ["m2"], "start_ref": "m3",
                             "key_messages": []}]}
 
     monkeypatch.setattr(claude, "summarize", fake_summarize)

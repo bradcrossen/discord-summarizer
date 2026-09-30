@@ -28,10 +28,10 @@ def summary(**overrides):
         "tldr": "Raid moved to Friday.",
         "topics": [{
             "title": "Raid moved [Friday]",
-            "summary": "Alice moved the raid.",
-            "participants": ["Alice", "Bob"],
+            "summary": "{m1} moved the raid.",
+            "participants": ["m1", "m2"],
             "start_ref": "m1",
-            "key_messages": [{"ref": "m3", "label": "Cara's unanswered question"},
+            "key_messages": [{"ref": "m3", "label": "{m3}'s unanswered question"},
                              {"ref": "m99", "label": "does not exist"}],
         }],
         "quotes": [{"ref": "m2", "excerpt": "one horse-sized duck, obviously"}],
@@ -49,6 +49,47 @@ def test_links_are_built_from_refs_and_unknown_refs_are_dropped():
     assert f"[Cara's unanswered question]({link(s.lines[2])})" in body
     assert "does not exist" not in body
     assert "*Alice, Bob*" in body
+
+
+def test_names_come_from_the_message_claude_points_at():
+    topics = [{"title": "{m2} vs the duck", "start_ref": "m2", "key_messages": [],
+               "summary": "{m2} would fight the duck; { [M1] } disagreed and {m9} left.",
+               "participants": ["m2", "m1"]}]
+    [payload] = render.digest_payloads(
+        summary(tldr="{m1} moved the raid.", topics=topics, quotes=[]), script(), CTX)
+    body = payload["embeds"][0]["description"]
+
+    assert body.startswith("Alice moved the raid.")
+    assert "**[Bob vs the duck](" in body
+    assert "Bob would fight the duck; Alice disagreed and someone left." in body
+    assert "{" not in body
+
+
+def test_participants_are_the_authors_of_the_cited_messages():
+    s = transcript.build([
+        message(0, "Alice", "first"),
+        message(1, "Bob", "second"),
+        message(2, "Alice", "third"),
+    ], PT)
+    topic = {"title": "T", "summary": "S", "start_ref": "m1", "key_messages": [],
+             # A repeat author once, an unknown ref dropped, and a typed name
+             # dropped: only a message someone wrote puts them in the list.
+             "participants": ["m3", "m2", "m1", "m42", "Cara"]}
+    [payload] = render.digest_payloads(summary(topics=[topic], quotes=[]), s, CTX)
+    assert "*Alice, Bob*" in payload["embeds"][0]["description"]
+    assert "Cara" not in payload["embeds"][0]["description"]
+
+
+def test_a_forwarded_message_is_never_quoted_as_the_forwarders_words():
+    s = transcript.build([
+        message(0, "Alice", "", message_snapshots=[{"message": {"content": "a hot take"}}]),
+        message(1, "Bob", "my own words"),
+    ], PT)
+    quotes = [{"ref": "m1", "excerpt": "a hot take"}, {"ref": "m2", "excerpt": "my own words"}]
+    [payload] = render.digest_payloads(summary(topics=[], quotes=quotes), s, CTX)
+    body = payload["embeds"][0]["description"]
+    assert "hot take" not in body
+    assert "“my own words” — **Bob**" in body
 
 
 def test_topic_without_a_valid_start_ref_is_plain_bold():
@@ -84,7 +125,7 @@ def test_header_footer_and_no_pings():
 
 
 def test_a_long_digest_splits_between_topics_within_discord_limits():
-    topics = [{"title": f"Topic {i}", "summary": "word " * 200, "participants": ["Alice"],
+    topics = [{"title": f"Topic {i}", "summary": "word " * 200, "participants": ["m1"],
                "start_ref": "m1", "key_messages": []} for i in range(12)]
     payloads = render.digest_payloads(summary(topics=topics), script(), CTX)
 
